@@ -57,7 +57,7 @@ done
 
 [ -z "${filter[@]}" ] || filter=( --tag-filters "${filter[@]}" )
 
-query='ResourceTagMappingList['
+query='{ "ResourceTagMappingList": ResourceTagMappingList['
 #?Tags[?Key == `'$1'` && Value != `'$2'`]
 query="$query]"
 
@@ -74,7 +74,7 @@ for key in ${project_keys[@]}; do
 done
 
 if [ -n "${project_keys[@]}" ]; then
-	query="$query$query_str]}"
+	query="$query$query_str] }}"
 fi
 
 aws --region $AWS_REGION --no-cli-pager resourcegroupstaggingapi get-resources "${filter[@]}" --query "${query[*]}"
