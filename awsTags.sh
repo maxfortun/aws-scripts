@@ -1,7 +1,8 @@
 #!/bin/bash -ex
 
-include=()
+filter=()
 exclude=()
+declare -A project=()
 
 mode=
 while [ -n "$1" ]; do
@@ -14,20 +15,24 @@ while [ -n "$1" ]; do
 	case "$mode" in
 		+)
 			if [ -z "$2" ]; then
-				echo "Invalid number of parameters for inclusions. Required 2. Name and value." >&2
+				echo "Invalid number of parameters for filter. Required 2. Name and value." >&2
 				exit 1
 			fi
 		
-			include+=( "Key=$1,Values=$2" )
+			filter+=( "Key=$1,Values=$2" )
+
+			project[$1]=1
 			shift 2
 		;;
 		-)
 			if [ -z "$2" ]; then
-				echo "Invalid number of parameters for inclusions. Required 2. Name and value." >&2
+				echo "Invalid number of parameters for exclusions. Required 2. Name and value." >&2
 				exit 1
 			fi
 
-			exclude+=( 'ResourceTagMappingList[?Tags[?Key == `'$1'` && Value != `'$2'`]]' )
+			exclude+=( 'Key == `'$1'` && Value != `'$2'`' )
+
+			project[$1]=1
 			shift 2
 		;;
 		*)
@@ -41,7 +46,26 @@ while [ -n "$1" ]; do
 	
 done
 
-[ -z "${include[@]}" ] || include=( --tag-filters "${include[@]}" )
-[ -z "${exclude[@]}" ] || exclude=( --query "${exclude[@]}" )
+[ -z "${filter[@]}" ] || filter=( --tag-filters "${filter[@]}" )
 
-aws --region $AWS_REGION --no-cli-pager resourcegroupstaggingapi get-resources "${include[@]}" "${exclude[@]}"
+query='ResourceTagMappingList['
+#?Tags[?Key == `'$1'` && Value != `'$2'`]
+query="$query]"
+
+project_keys=${!project[@]}
+
+if [ -n "${project_keys[@]}" ]; then
+	query="$query.{\"ResourceARN\": ResourceARN"
+fi
+
+query_str=
+for key in ${project_keys[@]}; do
+	query_str="$query_str, \"$key\": Tags[?Key == \`$key\`] | [0].Value"
+done
+
+if [ -n "${project_keys[@]}" ]; then
+	query="$query$query_str}"
+fi
+
+aws --region $AWS_REGION --no-cli-pager resourcegroupstaggingapi get-resources "${filter[@]}" --query "${query[*]}"
+
