@@ -58,7 +58,14 @@ done
 [ -z "${filter[@]}" ] || filter=( --tag-filters "${filter[@]}" )
 
 query='{ "ResourceTagMappingList": ResourceTagMappingList['
-#?Tags[?Key == `'$1'` && Value != `'$2'`]
+if [ "${exclude[@]}" ]; then
+	exclude_str=
+	for exclusion in "${exclude[@]}"; do
+		[ -z "$exclude_str" ] || exclude_str="$exclude_str && "
+		exclude_str="$exclude_str($exclusion)"
+	done
+	query="$query?Tags[?$exclude_str]"
+fi
 query="$query]"
 
 project_keys=${!project[@]}
@@ -74,8 +81,9 @@ for key in ${project_keys[@]}; do
 done
 
 if [ -n "${project_keys[@]}" ]; then
-	query="$query$query_str] }}"
+	query="$query$query_str] }"
 fi
+query="$query}"
 
 aws --region $AWS_REGION --no-cli-pager resourcegroupstaggingapi get-resources "${filter[@]}" --query "${query[*]}"
 
